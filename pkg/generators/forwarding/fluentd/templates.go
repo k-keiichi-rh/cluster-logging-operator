@@ -10,6 +10,7 @@ var templateRegistry = []string{
 	fluentConfTemplate,
 	pipelineToOutputCopyTemplate,
 	sourceToPipelineCopyTemplate,
+	sourceToPipelineBasedOnLabelCopyTemplate,
 	outputLabelConfTemplate,
 	outputLabelConfNocopyTemplate,
 	outputLabelConfNoretryTemplate,
@@ -346,16 +347,6 @@ const fluentConfTemplate = `{{- define "fluentConf" -}}
     alt_tags 'kubernetes.var.log.containers.logging-eventrouter-*.** kubernetes.var.log.containers.eventrouter-*.** kubernetes.var.log.containers.cluster-logging-eventrouter-*.** kubernetes.journal.container._default_.kubernetes-event'
   </filter>
 
-  #flatten labels to prevent field explosion in ES
-  <filter ** >
-    @type record_transformer
-    enable_ruby true
-    <record>
-      kubernetes ${!record['kubernetes'].nil? ? record['kubernetes'].merge({"flat_labels": (record['kubernetes']['labels']||{}).map{|k,v| "#{k}=#{v}"}}) : {} }
-    </record>
-    remove_keys $.kubernetes.labels
-  </filter>
-
   # Relabel specific source tags to specific intermediary labels for copy processing
   # Earlier matchers remove logs so they don't fall through to later ones.
   # A log source matcher may be null if no pipeline wants that type of log.
@@ -568,8 +559,90 @@ const sourceToPipelineCopyTemplate = `{{- define "sourceToPipelineCopyTemplate" 
 </label>
 {{- end}}`
 
+const sourceToPipelineBasedOnLabelCopyTemplate = `{{- define "sourceToPipelineBasedOnLabelCopyTemplate" -}}
+<label {{sourceTypelabelName .Source}}>
+  <match **>
+    @type copy
+{{ range $index, $pipelineLabel := .PipelineNames }}
+    <store>
+      @type relabel
+      @label {{labelName $pipelineLabel}}_BASED_ON_LABEL
+    </store>
+{{- end }}
+{{ if .IncludeLegacySecureForward }}
+    <store>
+      @type relabel
+      @label @_LEGACY_SECUREFORWARD_BASED_ON_LABEL
+    </store>
+{{- end }}
+{{ if .IncludeLegacySyslog }}
+    <store>
+      @type relabel
+      @label @_LEGACY_SYSLOG_BASED_ON_LABEL
+    </store>
+{{- end }}
+  </match>
+</label>
+
+{{ $selector := .AppLabelSelector }}
+{{ range $index, $pipelineLabel := .PipelineNames }}
+<label {{labelName $pipelineLabel}}_BASED_ON_LABEL>
+  <match **>
+    @type label_router
+    <route>
+      @label {{labelName $pipelineLabel}}
+  {{- if $selector}}
+      <match>
+        labels {{$selector}}
+      </match>
+  {{- end}}
+    </route>
+  </match>
+</label>
+{{- end }}
+{{ if .IncludeLegacySecureForward }}
+<label @_LEGACY_SECUREFORWARD_BASED_ON_LABEL>
+  <match **>
+    @type label_router
+    <route>
+      @label @_LEGACY_SECUREFORWARD
+  {{- if .AppLabelSelector}}
+      <match>
+        labels {{.AppLabelSelector}}
+      </match>
+  {{- end}}
+    </route>
+  </match>
+</label>
+{{- end }}
+{{ if .IncludeLegacySyslog }}
+<label @_LEGACY_SYSLOG_BASED_ON_LABEL>
+  <match **>
+    @type label_router
+    <route>
+      @label @_LEGACY_SYSLOG
+  {{- if .AppLabelSelector}}
+      <match>
+        labels {{.AppLabelSelector}}
+      </match>
+  {{- end}}
+    </route>
+  </match>
+</label>
+{{- end }}
+{{- end}}`
+
 const pipelineToOutputCopyTemplate = `{{- define "pipelineToOutputCopyTemplate" -}}
 <label {{labelName .Name}}>
+  #flatten labels to prevent field explosion in ES
+  <filter ** >
+    @type record_transformer
+    enable_ruby true
+    <record>
+      kubernetes ${!record['kubernetes'].nil? ? record['kubernetes'].merge({"flat_labels": (record['kubernetes']['labels']||{}).map{|k,v| "#{k}=#{v}"}}) : {} }
+    </record>
+    remove_keys $.kubernetes.labels
+  </filter>
   {{ if .PipelineLabels -}}
   <filter **>
     @type record_transformer

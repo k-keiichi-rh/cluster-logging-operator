@@ -104,6 +104,11 @@ type Application struct {
 	//
 	// +optional
 	Namespaces []string `json:"namespaces"`
+	// Selector should be a LabelSelector object. For testing purpose,
+	// it is a list of label string.
+	//
+	// +optional
+	Selector string `json:"selector"`
 }
 
 // Infrastructure enables infrastructure logs. Filtering may be added in future.
