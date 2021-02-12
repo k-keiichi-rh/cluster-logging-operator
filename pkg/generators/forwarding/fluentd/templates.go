@@ -592,9 +592,11 @@ const sourceToPipelineBasedOnLabelCopyTemplate = `{{- define "sourceToPipelineBa
     <route>
       @label {{labelName $pipelineLabel}}
   {{- if $selector}}
+    {{ range $key, $val := $selector }}
       <match>
-        labels {{$selector}}
+        labels {{$key}}:{{$val}}
       </match>
+    {{- end}}
   {{- end}}
     </route>
   </match>

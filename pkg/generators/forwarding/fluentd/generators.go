@@ -11,6 +11,7 @@ import (
 	"github.com/openshift/cluster-logging-operator/pkg/generators"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+        metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 //ConfigGenerator is a config generator for fluentd
@@ -48,7 +49,7 @@ func (engine *ConfigGenerator) Generate(clfSpec *logging.ClusterLogForwarderSpec
 	var (
 		inputs                 sets.String
 		namespaces             sets.String
-		labelSelector          string
+		labelSelector          *metav1.LabelSelector
 		routeMap               logging.RouteMap
 		sourceInputLabels      []string
 		sourceToPipelineLabels []string
@@ -141,9 +142,8 @@ func (engine *ConfigGenerator) Generate(clfSpec *logging.ClusterLogForwarderSpec
 	return result, nil
 }
 
-func gatherSources(forwarder *logging.ClusterLogForwarderSpec) (types sets.String, namespaces sets.String, labelSelector string) {
+func gatherSources(forwarder *logging.ClusterLogForwarderSpec) (types sets.String, namespaces sets.String, labelSelector *metav1.LabelSelector) {
 	types, namespaces = sets.NewString(), sets.NewString()
-	labelSelector = ""
 	specs := forwarder.InputMap()
 	for inputName := range logging.NewRoutes(forwarder.Pipelines).ByInput {
 		if logging.ReservedInputNames.Has(inputName) {
@@ -186,23 +186,28 @@ func inputsToPipelines(fwdspec *logging.ClusterLogForwarderSpec) logging.RouteMa
 
 //generateSourceToPipelineLabels generates fluentd label stanzas to fan source types to multiple pipelines
 func (engine *ConfigGenerator) generateSourceToPipelineLabels(sourcesToPipelines logging.RouteMap, labelSelector string) ([]string, error) {
+func (engine *ConfigGenerator) generateSourceToPipelineLabels(sourcesToPipelines logging.RouteMap, labelSelector *metav1.LabelSelector) ([]string, error) {
 	configs := []string{}
 	for sourceType, pipelineNames := range sourcesToPipelines {
+		labelMap, err := metav1.LabelSelectorAsMap(labelSelector)
+		if err != nil {
+			return nil, err
+		}
 		data := struct {
 			IncludeLegacySecureForward bool
 			IncludeLegacySyslog        bool
 			Source                     string
 			PipelineNames              []string
-			AppLabelSelector           string
+			AppLabelSelector           map[string]string
 		}{
 			engine.includeLegacyForwardConfig,
 			engine.includeLegacySyslogConfig,
 			sourceType,
 			pipelineNames.List(),
-			labelSelector,
+			labelMap,
 		}
 		sourceToPipelineTemplate := "sourceToPipelineCopyTemplate"
-		if sourceType == logging.InputNameApplication && len(labelSelector) > 0 {
+		if sourceType == logging.InputNameApplication && labelSelector != nil {
 			sourceToPipelineTemplate = "sourceToPipelineBasedOnLabelCopyTemplate"
 		}
 		result, err := engine.Execute(sourceToPipelineTemplate, data)

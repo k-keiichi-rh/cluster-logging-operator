@@ -104,11 +104,10 @@ type Application struct {
 	//
 	// +optional
 	Namespaces []string `json:"namespaces"`
-	// Selector should be a LabelSelector object. For testing purpose,
-	// it is a list of label string.
-	//
+	// Selector selects logs from all pods with matching labels.
+	// For testing purpose, MatchLabels is only supported.
 	// +optional
-	Selector string `json:"selector"`
+	Selector *metav1.LabelSelector `json:"selector,omitempty"`
 }
 
 // Infrastructure enables infrastructure logs. Filtering may be added in future.
