@@ -185,7 +185,6 @@ func inputsToPipelines(fwdspec *logging.ClusterLogForwarderSpec) logging.RouteMa
 }
 
 //generateSourceToPipelineLabels generates fluentd label stanzas to fan source types to multiple pipelines
-func (engine *ConfigGenerator) generateSourceToPipelineLabels(sourcesToPipelines logging.RouteMap, labelSelector string) ([]string, error) {
 func (engine *ConfigGenerator) generateSourceToPipelineLabels(sourcesToPipelines logging.RouteMap, labelSelector *metav1.LabelSelector) ([]string, error) {
 	configs := []string{}
 	for sourceType, pipelineNames := range sourcesToPipelines {
