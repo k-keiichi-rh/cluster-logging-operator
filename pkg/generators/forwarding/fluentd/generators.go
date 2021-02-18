@@ -262,6 +262,7 @@ func (engine *ConfigGenerator) generateInputSelectorBlock(fwdspec *logging.Clust
 		log.V(3).Info("Generated input selector block configurations", "configurations", config)
 	}
 	log.Info("generateInputSelectorBlock check3", selectors)
+	config += "kiikii"
 	return config, nil
 }
 
