@@ -10,6 +10,8 @@ var templateRegistry = []string{
 	fluentConfTemplate,
 	pipelineToOutputCopyTemplate,
 	sourceToPipelineCopyTemplate,
+	inputSelectorBlockTemplate,
+	inputSelectorTemplate,
 	outputLabelConfTemplate,
 	outputLabelConfNocopyTemplate,
 	outputLabelConfNoretryTemplate,
@@ -346,16 +348,6 @@ const fluentConfTemplate = `{{- define "fluentConf" -}}
     alt_tags 'kubernetes.var.log.containers.logging-eventrouter-*.** kubernetes.var.log.containers.eventrouter-*.** kubernetes.var.log.containers.cluster-logging-eventrouter-*.** kubernetes.journal.container._default_.kubernetes-event'
   </filter>
 
-  #flatten labels to prevent field explosion in ES
-  <filter ** >
-    @type record_transformer
-    enable_ruby true
-    <record>
-      kubernetes ${!record['kubernetes'].nil? ? record['kubernetes'].merge({"flat_labels": (record['kubernetes']['labels']||{}).map{|k,v| "#{k}=#{v}"}}) : {} }
-    </record>
-    remove_keys $.kubernetes.labels
-  </filter>
-
   # Relabel specific source tags to specific intermediary labels for copy processing
   # Earlier matchers remove logs so they don't fall through to later ones.
   # A log source matcher may be null if no pipeline wants that type of log.
@@ -367,26 +359,14 @@ const fluentConfTemplate = `{{- define "fluentConf" -}}
     @type null
 {{- end}}
   </match>
+  <match kubernetes.**>
 {{- if .CollectAppLogs}}
-	{{- if .AppNamespaces}}
-  <match {{range $ns := .AppNamespaces}}kubernetes.**_{{$ns}}_** {{end}}>
     @type relabel
     @label @_APPLICATION
-  </match>
-  <match kubernetes.** >
-    @type null
-  </match>
-	{{- else}}
-  <match kubernetes.**>
-    @type relabel
-    @label @_APPLICATION
-  </match>
-	{{- end}}
 {{- else}}
-  <match kubernetes.**>
     @type null
-  </match>
 {{- end}}
+  </match>
   <match linux-audit.log** k8s-audit.log** openshift-audit.log**>
 {{- if .CollectAuditLogs }}
     @type relabel
@@ -552,12 +532,55 @@ const sourceToPipelineCopyTemplate = `{{- define "sourceToPipelineCopyTemplate" 
       @label {{labelName $pipelineLabel}}
     </store>
 {{- end }}
+{{ if .InputSelectorBlock }}
+     <store>
+       @type relabel
+       @label {{sourceTypelabelName .Source}}_BASED_ON_INPUT_SELECTOR
+     </store>
+{{- end }}
   </match>
 </label>
+{{ if .InputSelectorBlock }}
+<label {{sourceTypelabelName .Source}}_BASED_ON_INPUT_SELECTOR>
+{{ .InputSelectorBlock }}
+ </label>
+{{- end }}
+{{- end}}`
+
+const inputSelectorBlockTemplate = `{{- define "inputSelectorBlockTemplate" -}}
+<match **>
+  @type label_router
+{{- range .InputSelectors }}
+{{ . }}
+{{- end}}
+</match>
+{{- end}}`
+
+const inputSelectorTemplate = `{{- define "inputSelectorTemplate" -}}
+  <route>
+    @label {{ .Pipeline }}
+    <match>
+{{ if .Namespaces }}
+      namespaces {{ .Namespaces }}
+{{- end}}
+{{ if .Labels }}
+      labels {{ .Labels }}
+{{- end}}
+    </match>
+  </route>
 {{- end}}`
 
 const pipelineToOutputCopyTemplate = `{{- define "pipelineToOutputCopyTemplate" -}}
 <label {{labelName .Name}}>
+  #flatten labels to prevent field explosion in ES
+  <filter ** >
+    @type record_transformer
+    enable_ruby true
+    <record>
+      kubernetes ${!record['kubernetes'].nil? ? record['kubernetes'].merge({"flat_labels": (record['kubernetes']['labels']||{}).map{|k,v| "#{k}=#{v}"}}) : {} }
+    </record>
+    remove_keys $.kubernetes.labels
+  </filter>
   {{ if .PipelineLabels -}}
   <filter **>
     @type record_transformer
