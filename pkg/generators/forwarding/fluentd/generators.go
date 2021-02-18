@@ -240,11 +240,6 @@ func (engine *ConfigGenerator) generateInputSelectorBlock(fwdspec *logging.Clust
 	log.Info("generateInputSelectorBlock check2")
 	selectors = append(selectors, "hogehoge")
 	if len(selectors) > 0 {
-		data := struct {
-			InputSelectors   []string
-		}{
-			selectors,
-		}
 		config, err := engine.Execute("inputSelectorBlockTemplate", "")
 		if err != nil {
 			return "", fmt.Errorf("Error processing inputSelectorBlock template: %v", err)
