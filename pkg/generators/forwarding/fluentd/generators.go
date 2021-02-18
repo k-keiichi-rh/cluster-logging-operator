@@ -218,11 +218,13 @@ func (engine *ConfigGenerator) generateInputSelectorBlock(fwdspec *logging.Clust
 	for _, pipeline := range fwdspec.Pipelines {
 		for _, inRef := range pipeline.InputRefs {
 			if input, ok := inputs[inRef]; ok {
+				log.Info("generateInputSelectorBlock check10", input.Application)
 				if app := input.Application; app != nil && (app.Selector != nil || len(app.Namespaces) > 0) {
 					conf, err := newInputSelectorConf(pipeline.Name, app.Selector, app.Namespaces)
 					if err != nil {
 						return "", fmt.Errorf("generating fluent input selector configurations: %v", err)
 					}
+					log.Info("generateInputSelectorBlock check11", conf)
 					result, err := engine.Execute("inputSelectorTemplate", conf)
 					if err != nil {
 						return "", fmt.Errorf("generating fluent input selector configurations: %v", err)
