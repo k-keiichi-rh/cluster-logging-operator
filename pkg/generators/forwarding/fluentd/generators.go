@@ -182,10 +182,12 @@ func inputsToPipelines(fwdspec *logging.ClusterLogForwarderSpec) logging.RouteMa
 func (engine *ConfigGenerator) generateSourceToPipelineLabels(sourcesToPipelines logging.RouteMap, fwdspec *logging.ClusterLogForwarderSpec) ([]string, error) {
 	configs := []string{}
 	for sourceType, pipelineNames := range sourcesToPipelines {
+		log.Info("check generateSourceToPipelineLabels", sourceType, piplineNames)
 		inputSelectorBlock, err := engine.generateInputSelectorBlock(fwdspec)
 		if err != nil {
 			return nil, fmt.Errorf("generating fluentd output label: %v", err)
 		}
+		log.Info("check 1 generateSourceToPipelineLabels", inputSelectorBlock)
 		data := struct {
 			IncludeLegacySecureForward bool
 			IncludeLegacySyslog        bool
@@ -212,6 +214,7 @@ func (engine *ConfigGenerator) generateInputSelectorBlock(fwdspec *logging.Clust
 	config := ""
 	selectors := []string{}
 	inputs := fwdspec.InputMap()
+	log.Info("generateInputSelectorBlock check1")
 	for _, pipeline := range fwdspec.Pipelines {
 		for _, inRef := range pipeline.InputRefs {
 			if input, ok := inputs[inRef]; ok {
@@ -230,7 +233,7 @@ func (engine *ConfigGenerator) generateInputSelectorBlock(fwdspec *logging.Clust
 		}
 	}
 	log.V(3).Info("Generated input selector configurations", "configurations", selectors)
-
+	log.Info("generateInputSelectorBlock check2")
 	if len(selectors) > 0 {
 		data := struct {
 			InputSelectors   []string
@@ -244,6 +247,7 @@ func (engine *ConfigGenerator) generateInputSelectorBlock(fwdspec *logging.Clust
 
 		log.V(3).Info("Generated input selector block configurations", "configurations", config)
 	}
+	log.Info("generateInputSelectorBlock check3", selectors)
 	return config, nil
 }
 
