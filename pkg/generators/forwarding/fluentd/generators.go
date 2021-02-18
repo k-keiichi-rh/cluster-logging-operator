@@ -3,6 +3,7 @@ package fluentd
 import (
 	"encoding/json"
 	"fmt"
+        "strings"
 	"github.com/openshift/cluster-logging-operator/pkg/constants"
 	"sort"
 	"text/template"
