@@ -10,7 +10,8 @@ var templateRegistry = []string{
 	fluentConfTemplate,
 	pipelineToOutputCopyTemplate,
 	sourceToPipelineCopyTemplate,
-	sourceToPipelineBasedOnLabelCopyTemplate,
+	inputeSelectorBlockTemplate,
+	inputeSelectorTemplate,
 	outputLabelConfTemplate,
 	outputLabelConfNocopyTemplate,
 	outputLabelConfNoretryTemplate,
@@ -543,6 +544,12 @@ const sourceToPipelineCopyTemplate = `{{- define "sourceToPipelineCopyTemplate" 
       @label {{labelName $pipelineLabel}}
     </store>
 {{- end }}
+{{ if .InputSelectorBlock }}
+    <store>
+      @type relabel
+      @label {{sourceTypelabelName .Source}}_BASED_ON_INPUT_SELECTOR
+    </store>
+{{- end }}
 {{ if .IncludeLegacySecureForward }}
     <store>
       @type relabel
@@ -556,82 +563,31 @@ const sourceToPipelineCopyTemplate = `{{- define "sourceToPipelineCopyTemplate" 
     </store>
 {{- end }}
   </match>
+</label>
+
+{{ if .InputSelector }}
+<label {{labelName $pipelineLabel}}_BASED_ON_INPUT_SELECTOR>
+{{ .InputSelectorBlock }}
 </label>
 {{- end}}`
 
-const sourceToPipelineBasedOnLabelCopyTemplate = `{{- define "sourceToPipelineBasedOnLabelCopyTemplate" -}}
-<label {{sourceTypelabelName .Source}}>
-  <match **>
-    @type copy
-{{ range $index, $pipelineLabel := .PipelineNames }}
-    <store>
-      @type relabel
-      @label {{labelName $pipelineLabel}}_BASED_ON_LABEL
-    </store>
-{{- end }}
-{{ if .IncludeLegacySecureForward }}
-    <store>
-      @type relabel
-      @label @_LEGACY_SECUREFORWARD_BASED_ON_LABEL
-    </store>
-{{- end }}
-{{ if .IncludeLegacySyslog }}
-    <store>
-      @type relabel
-      @label @_LEGACY_SYSLOG_BASED_ON_LABEL
-    </store>
-{{- end }}
-  </match>
-</label>
+const inputeSelectorBlockTemplate = `{{- define "inputeSelectorBlockTemplate" -}}
+<match **>
+  @type label_router
+{{- range .InputSelectors }}
+{{ . }}
+{{- end}}
+</match>
+{{- end}}`
 
-{{ $selector := .AppLabelSelector }}
-{{ range $index, $pipelineLabel := .PipelineNames }}
-<label {{labelName $pipelineLabel}}_BASED_ON_LABEL>
-  <match **>
-    @type label_router
-    <route>
-      @label {{labelName $pipelineLabel}}
-  {{- if $selector}}
-    {{ range $key, $val := $selector }}
-      <match>
-        labels {{$key}}:{{$val}}
-      </match>
-    {{- end}}
-  {{- end}}
-    </route>
-  </match>
-</label>
-{{- end }}
-{{ if .IncludeLegacySecureForward }}
-<label @_LEGACY_SECUREFORWARD_BASED_ON_LABEL>
-  <match **>
-    @type label_router
-    <route>
-      @label @_LEGACY_SECUREFORWARD
-  {{- if .AppLabelSelector}}
-      <match>
-        labels {{.AppLabelSelector}}
-      </match>
-  {{- end}}
-    </route>
-  </match>
-</label>
-{{- end }}
-{{ if .IncludeLegacySyslog }}
-<label @_LEGACY_SYSLOG_BASED_ON_LABEL>
-  <match **>
-    @type label_router
-    <route>
-      @label @_LEGACY_SYSLOG
-  {{- if .AppLabelSelector}}
-      <match>
-        labels {{.AppLabelSelector}}
-      </match>
-  {{- end}}
-    </route>
-  </match>
-</label>
-{{- end }}
+const inputeSelectorTemplate = `{{- define "inputeSelectorTemplate" -}}
+  <route>
+    @label {{ .pipeline }}
+    <match>
+      namespaces {{ .Namespaces }}
+      labels {{ .Labels }}
+    </match>
+  </route>
 {{- end}}`
 
 const pipelineToOutputCopyTemplate = `{{- define "pipelineToOutputCopyTemplate" -}}

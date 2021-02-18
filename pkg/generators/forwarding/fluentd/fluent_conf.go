@@ -7,6 +7,7 @@ import (
 	"text/template"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	logging "github.com/openshift/cluster-logging-operator/pkg/apis/logging/v1"
@@ -15,6 +16,28 @@ import (
 )
 
 var replacer = strings.NewReplacer(" ", "_", "-", "_", ".", "_")
+
+type inputSelectorConf struct {
+	pipeline        string
+	labelSelector   *metav1.LabelSelector
+	namespaces      sets.String
+}
+
+func (conf *inputSelectorConf) Namespaces() string {
+	return strings.Join(conf.namespaces, ",")
+}
+
+func (conf *inputSelectorConf) Labels() string {
+	labelMap, err := metav1.LabelSelectorAsMap(conf.labelSelector)
+	if err != nil {
+		return ""
+        }
+	labels := ""
+	for k, v := range labelMap {
+		labels += fmt.Sprintf("%s:%s", k, v)
+	}
+	return labels
+}
 
 type outputLabelConf struct {
 	Name            string
