@@ -182,7 +182,7 @@ func inputsToPipelines(fwdspec *logging.ClusterLogForwarderSpec) logging.RouteMa
 func (engine *ConfigGenerator) generateSourceToPipelineLabels(sourcesToPipelines logging.RouteMap, fwdspec *logging.ClusterLogForwarderSpec) ([]string, error) {
 	configs := []string{}
 	for sourceType, pipelineNames := range sourcesToPipelines {
-		log.Info("check generateSourceToPipelineLabels", sourceType, piplineNames)
+		log.Info("check generateSourceToPipelineLabels", sourceType, pipelineNames)
 		inputSelectorBlock, err := engine.generateInputSelectorBlock(fwdspec)
 		if err != nil {
 			return nil, fmt.Errorf("generating fluentd output label: %v", err)
