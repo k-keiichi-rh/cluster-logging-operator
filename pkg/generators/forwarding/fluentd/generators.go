@@ -232,9 +232,9 @@ func (engine *ConfigGenerator) generateInputSelectorBlock(fwdspec *logging.Clust
 						"foobar",
 					}
 					log.Info("generateInputSelectorBlock check11", pipeline.Name, app.Selector, "%S", strings.Join(app.Namespaces, ","))
-					if err != nil {
-						return "", fmt.Errorf("generating fluent input selector configurations: %v", err)
-					}
+					//if err != nil {
+					//	return "", fmt.Errorf("generating fluent input selector configurations: %v", err)
+					//}
 					log.Info("generateInputSelectorBlock check12", "foo", data, "bar")
 					result, err := engine.Execute("inputSelectorTemplate", data)
 					if err != nil {
