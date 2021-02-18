@@ -221,13 +221,22 @@ func (engine *ConfigGenerator) generateInputSelectorBlock(fwdspec *logging.Clust
 			if input, ok := inputs[inRef]; ok {
 				log.Info("generateInputSelectorBlock check10", input.Application)
 				if app := input.Application; app != nil && (app.Selector != nil || len(app.Namespaces) > 0) {
-					conf, err := newInputSelectorConf(pipeline.Name, app.Selector, app.Namespaces)
+//					conf, err := newInputSelectorConf(pipeline.Name, app.Selector, app.Namespaces)
+					data := struct {
+						Pipeline string
+						Namespaces string
+						Labels string
+					}{
+						"foo",
+						"bar",
+						"foobar",
+					}
 					log.Info("generateInputSelectorBlock check11", pipeline.Name, app.Selector, "%S", strings.Join(app.Namespaces, ","))
 					if err != nil {
 						return "", fmt.Errorf("generating fluent input selector configurations: %v", err)
 					}
-					log.Info("generateInputSelectorBlock check12", "foo", conf, "bar")
-					result, err := engine.Execute("inputSelectorTemplate", conf)
+					log.Info("generateInputSelectorBlock check12", "foo", data, "bar")
+					result, err := engine.Execute("inputSelectorTemplate", data)
 					if err != nil {
 						return "", fmt.Errorf("generating fluent input selector configurations: %v", err)
 					}
@@ -238,6 +247,7 @@ func (engine *ConfigGenerator) generateInputSelectorBlock(fwdspec *logging.Clust
 	}
 	log.V(3).Info("Generated input selector configurations", "configurations", selectors)
 	log.Info("generateInputSelectorBlock check2")
+	selectors = append(selectors, "hogehoge")
 	if len(selectors) > 0 {
 		data := struct {
 			InputSelectors   []string
