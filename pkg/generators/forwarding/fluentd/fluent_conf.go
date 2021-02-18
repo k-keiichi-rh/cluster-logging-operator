@@ -25,16 +25,18 @@ type inputSelectorConf struct {
 
 func newInputSelectorConf(pipeline string, labelSelector *metav1.LabelSelector, namespaces []string) (*inputSelectorConf, error) {
 	labels := ""
-
+	log.Info("newInputSelectorConf check1", pipeline, labelSelector, namespaces)
 	labelMap, err := metav1.LabelSelectorAsMap(labelSelector)
 	if err != nil {
 		return nil, fmt.Errorf("LabelSelector: %v", err)
         }
+	log.Info("newInputSelectorConf check2", labelMap)
 	if labelMap != nil {
 		for k, v := range labelMap {
 			labels += fmt.Sprintf("%s:%s", k, v)
 		}
 	}
+	log.Info("newInputSelectorConf check3", labels)
 
 	return &inputSelectorConf{
 		Pipeline: pipeline,
