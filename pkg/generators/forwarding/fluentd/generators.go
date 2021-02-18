@@ -236,7 +236,7 @@ func (engine *ConfigGenerator) generateInputSelectorBlock(fwdspec *logging.Clust
 					//	return "", fmt.Errorf("generating fluent input selector configurations: %v", err)
 					//}
 					log.Info("generateInputSelectorBlock check12", "foo", data, "bar")
-					result, err := engine.Execute("inputSelectorTemplate", data)
+					result, err := engine.Execute("inputSelectorTemplate", "")
 					if err != nil {
 						return "", fmt.Errorf("generating fluent input selector configurations: %v", err)
 					}
@@ -254,7 +254,7 @@ func (engine *ConfigGenerator) generateInputSelectorBlock(fwdspec *logging.Clust
 		}{
 			selectors,
 		}
-		config, err := engine.Execute("inputSelectorBlockTemplate", data)
+		config, err := engine.Execute("inputSelectorBlockTemplate", "")
 		if err != nil {
 			return "", fmt.Errorf("Error processing inputSelectorBlock template: %v", err)
 		}
