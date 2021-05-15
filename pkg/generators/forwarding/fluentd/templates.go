@@ -540,16 +540,20 @@ const inputSelectorToPipelineTemplate = `{{- define "inputSelectorToPipelineTemp
 <label {{sourceTypelabelName .Source}}>
   <match **>
     @type label_router
-{{- if .PipelineNames }}
-    default_route {{sourceTypelabelName .Source}}_DEFAULT
-{{- end }}
     {{- range .InputSelectors }}
     {{ . }}
     {{- end}}
+{{- if .PipelineNames }}
+    <route>
+      @label {{sourceTypelabelName .Source}}_ALL
+      <match>
+      </match>
+    </route>
+{{- end }}
   </match>
 </label>
 {{ if .PipelineNames -}}
-<label {{sourceTypelabelName .Source}}_DEFAULT>
+<label {{sourceTypelabelName .Source}}_ALL>
   <match **>
     @type copy
 {{- range $index, $pipelineLabel := .PipelineNames }}
@@ -613,15 +617,15 @@ const pipelineToOutputCopyTemplate = `{{- define "pipelineToOutputCopyTemplate" 
 
 const outputLabelConfTemplate = `{{- define "outputLabelConf" -}}
 <label {{.LabelName}}>
-  {{- if (.NeedChangeElasticsearchIndexName)}}
+  {{- if (.NeedChangeElasticsearchStructuredIndexName)}}
   <filter **>
     @type record_modifier
 	<record>
-	  indexFromKey     ${record.dig({{.GetKeyVal .Target.OutputTypeSpec.Elasticsearch.IndexKey}})}
-	  hasIndexName     "{{.Target.OutputTypeSpec.Elasticsearch.IndexName}}"
-	  viaq_index_name  ${if !record['indexFromKey'].nil?; record['indexFromKey']; elsif record['hasIndexName'] != ""; record['hasIndexName']; else record['viaq_index_name']; end;}
+	  indexFromKey     ${record.dig({{.GetKeyVal .Target.OutputTypeSpec.Elasticsearch.StructuredIndexKey}})}
+	  hasStructuredIndexName     "{{.Target.OutputTypeSpec.Elasticsearch.StructuredIndexName}}"
+	  viaq_index_name  ${if !record['indexFromKey'].nil?; record['indexFromKey']; elsif record['hasStructuredIndexName'] != ""; record['hasStructuredIndexName']; else record['viaq_index_name']; end;}
 	</record>
-	remove_keys indexFromKey, hasIndexName
+	remove_keys indexFromKey, hasStructuredIndexName
   </filter>
   {{- end}}
   {{- if .IsElasticSearchOutput}}
@@ -685,6 +689,10 @@ const outputLabelConfJsonParseNoretryTemplate = `{{- define "outputLabelConfJson
 	</record>
 	remove_keys kubernetes_info, namespace_info, pod_info, container_info, msg_key, msg_info
   </filter>
+  <match journal.** system.var.log**>
+    @type copy
+{{include .StoreTemplate . "pick_daemon_name" | indent 4}}
+  </match>
 {{end -}}
   <match **>
     @type copy
@@ -768,6 +776,16 @@ const storeElasticsearchTemplate = `{{ define "storeElasticsearch" -}}
   port {{.Port}}
   verify_es_version_at_startup false
 {{- if .Target.Secret }}
+{{ if .SecretPathIfFound "username" -}}
+{{ with $path := .SecretPath "username" -}}
+  user "#{File.exists?('{{ $path }}') ? open('{{ $path }}','r') do |f|f.read end : ''}"
+{{ end -}}
+{{ end -}}
+{{ if .SecretPathIfFound "password" -}}
+{{ with $path := .SecretPath "password" -}}
+  password "#{File.exists?('{{ $path }}') ? open('{{ $path }}','r') do |f|f.read end : ''}"
+{{ end -}}
+{{ end -}}
   scheme https
   ssl_version TLSv1_2
 {{- else }}
@@ -838,13 +856,21 @@ const storeSyslogTemplateOld = `{{- define "storeSyslogOld" -}}
 const storeSyslogTemplate = `{{- define "storeSyslog" -}}
 <store>
 	@type remote_syslog
+	{{if .Hints.Has "pick_daemon_name" -}}
+	@id {{.StoreID}}_journal
+	{{- else }}
 	@id {{.StoreID}}
+	{{- end }}
 	host {{.Host}}
 	port {{.Port}}
 	rfc {{.Rfc}}
 	facility {{.Facility}}
     severity {{.Severity}}
-	{{if .Target.Syslog.AppName -}}
+	{{if .Hints.Has "pick_daemon_name" -}}
+	{{if (eq .Rfc "rfc5424") -}}
+	appname ${$.systemd.u.SYSLOG_IDENTIFIER}
+	{{end -}}
+	{{else if .Target.Syslog.AppName -}}
 	appname {{.AppName}}
 	{{end -}}
 	{{if .Target.Syslog.MsgID -}}
@@ -853,7 +879,11 @@ const storeSyslogTemplate = `{{- define "storeSyslog" -}}
 	{{if .Target.Syslog.ProcID -}}
 	procid {{.ProcID}}
 	{{end -}}
-	{{if .Target.Syslog.Tag -}}
+	{{if .Hints.Has "pick_daemon_name" -}}
+	{{if (eq .Rfc "rfc3164") -}}
+	program ${$.systemd.u.SYSLOG_IDENTIFIER}
+	{{end -}}
+	{{else if .Target.Syslog.Tag -}}
 	program {{.Tag}}
 	{{end -}}
 	protocol {{.Protocol}}
@@ -879,9 +909,15 @@ const storeSyslogTemplate = `{{- define "storeSyslog" -}}
 	  message_key {{.PayloadKey}}
 	</format>
 {{end -}}
+{{- if .Hints.Has "pick_daemon_name" }}
+  <buffer $.systemd.u.SYSLOG_IDENTIFIER>
+    @type file
+    path '{{.BufferPath}}_journal'
+{{- else }}
   <buffer {{.ChunkKeys}}>
     @type file
     path '{{.BufferPath}}'
+{{- end }}
     flush_mode {{.FlushMode}}
     flush_interval {{.FlushInterval}}
     flush_thread_count {{.FlushThreadCount}}
@@ -912,6 +948,16 @@ brokers {{.Brokers}}
 default_topic {{.Topic}}
 use_event_time true
 {{ if .Target.Secret -}}
+{{ if .SecretPathIfFound "username" -}}
+{{ with $path := .SecretPath "username" -}}
+username "#{File.exists?('{{ $path }}') ? open('{{ $path }}','r') do |f|f.read end : ''}"
+{{ end -}}
+{{ end -}}
+{{ if .SecretPathIfFound "password" -}}
+{{ with $path := .SecretPath "password" -}}
+password "#{File.exists?('{{ $path }}') ? open('{{ $path }}','r') do |f|f.read end : ''}"
+{{ end -}}
+{{ end -}}
 {{ $tlsCert := .SecretPath "tls.crt" }}
 {{ $tlsKey := .SecretPath "tls.key" }}
 ssl_ca_cert '{{ .SecretPath "ca-bundle.crt"}}'
