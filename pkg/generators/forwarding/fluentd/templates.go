@@ -689,11 +689,16 @@ const outputLabelConfJsonParseNoretryTemplate = `{{- define "outputLabelConfJson
 	  pod_info        ${if record['kubernetes_info'] != nil && record['kubernetes_info'] != {}; "pod_name=" + record['kubernetes_info']['pod_name']; else nil; end}
 	  container_info  ${if record['kubernetes_info'] != nil && record['kubernetes_info'] != {}; "container_name=" + record['kubernetes_info']['container_name']; else nil; end}
 	  msg_key         ${if record.has_key?('message') && record['message'] != nil; record['message']; else nil; end}
-      msg_info        ${if record['msg_key'] != nil && record['msg_key'].is_a?(Hash); require 'json'; "message="+record['message'].to_json; elsif record['msg_key'] != nil; "message="+record['message']; else nil; end}
-      message         ${if record['msg_key'] != nil && record['kubernetes_info'] != nil && record['kubernetes_info'] != {}; record['namespace_info'] + ", " + record['container_info'] + ", " + record['pod_info'] + ", " + record['msg_info']; else record['message']; end}
+	  msg_info        ${if record['msg_key'] != nil && record['msg_key'].is_a?(Hash); require 'json'; "message="+record['message'].to_json; elsif record['msg_key'] != nil; "message="+record['message']; else nil; end}
+	  message         ${if record['msg_key'] != nil && record['kubernetes_info'] != nil && record['kubernetes_info'] != {}; record['namespace_info'] + ", " + record['container_info'] + ", " + record['pod_info'] + ", " + record['msg_info']; else record['message']; end}
+	  systemd_info    ${if record.has_key?('systemd') && record['systemd']['t'].has_key?('PID'); record['systemd']['u']['SYSLOG_IDENTIFIER'] += "[" + record['systemd']['t']['PID'] + "]"; else {}; end}
 	</record>
-	remove_keys kubernetes_info, namespace_info, pod_info, container_info, msg_key, msg_info
+	remove_keys kubernetes_info, namespace_info, pod_info, container_info, msg_key, msg_info, systemd_info
   </filter>
+  <match journal.** system.var.log**>
+    @type copy
+{{include .StoreTemplate . "pick_daemon_name" | indent 4}}
+  </match>
 {{end -}}
   <match **>
     @type copy
@@ -863,13 +868,21 @@ const storeSyslogTemplateOld = `{{- define "storeSyslogOld" -}}
 const storeSyslogTemplate = `{{- define "storeSyslog" -}}
 <store>
 	@type remote_syslog
+	{{if .Hints.Has "pick_daemon_name" -}}
+	@id {{.StoreID}}_journal
+	{{- else }}
 	@id {{.StoreID}}
+	{{- end }}
 	host {{.Host}}
 	port {{.Port}}
 	rfc {{.Rfc}}
 	facility {{.Facility}}
     severity {{.Severity}}
-	{{if .Target.Syslog.AppName -}}
+	{{if .Hints.Has "pick_daemon_name" -}}
+	{{if (eq .Rfc "rfc5424") -}}
+	appname ${$.systemd.u.SYSLOG_IDENTIFIER}
+	{{end -}}
+	{{else if .Target.Syslog.AppName -}}
 	appname {{.AppName}}
 	{{end -}}
 	{{if .Target.Syslog.MsgID -}}
@@ -878,7 +891,11 @@ const storeSyslogTemplate = `{{- define "storeSyslog" -}}
 	{{if .Target.Syslog.ProcID -}}
 	procid {{.ProcID}}
 	{{end -}}
-	{{if .Target.Syslog.Tag -}}
+	{{if .Hints.Has "pick_daemon_name" -}}
+	{{if (eq .Rfc "rfc3164") -}}
+	program ${$.systemd.u.SYSLOG_IDENTIFIER}
+	{{end -}}
+	{{else if .Target.Syslog.Tag -}}
 	program {{.Tag}}
 	{{end -}}
 	protocol {{.Protocol}}
@@ -904,9 +921,15 @@ const storeSyslogTemplate = `{{- define "storeSyslog" -}}
 	  message_key {{.PayloadKey}}
 	</format>
 {{end -}}
+{{- if .Hints.Has "pick_daemon_name" }}
+  <buffer $.systemd.u.SYSLOG_IDENTIFIER>
+    @type file
+    path '{{.BufferPath}}_journal'
+{{- else }}
   <buffer {{.ChunkKeys}}>
     @type file
     path '{{.BufferPath}}'
+{{- end }}
     flush_mode {{.FlushMode}}
     flush_interval {{.FlushInterval}}
     flush_thread_count {{.FlushThreadCount}}
